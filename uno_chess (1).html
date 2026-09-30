@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNO Chess - Playable Offline & Online</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;900&family=Inter:wght@400;600;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Compat Libraries -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1329;
+            color: #f8fafc;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .font-digital {
+            font-family: 'Orbitron', monospace;
+        }
+
+        /* Chess Clock Styling */
+        .chess-clock {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 3px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            transition: all 0.3s ease;
+        }
+        .chess-clock.active-turn {
+            border-color: #38bdf8;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5), inset 0 0 10px rgba(56, 189, 248, 0.2);
+            transform: scale(1.02);
+        }
+
+        .lcd-display {
+            background-color: #04151f;
+            color: #38bdf8;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+            border: 2px solid #1e3a8a;
+            border-radius: 6px;
+        }
+
+        /* Chess Board Grid */
+        .board-container {
+            position: relative;
+            width: 100%;
+            max-width: 540px;
+            aspect-ratio: 1 / 1;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 6px solid #1e293b;
+        }
+
+        .chess-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 100%;
+            height: 100%;
+        }
+
+        /* High Contrast Board Squares */
+        .sq-light { background-color: #cbd5e1; }
+        .sq-dark { background-color: #475569; }
+
+        .square {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+
+        .square:hover {
+            filter: brightness(1.15);
+        }
+
+        /* Small Color Indicator Dot for Each Square */
+        .sq-color-dot {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1.5px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Move Highlights */
+        .sq-selected {
+            background-color: #f59e0b !important;
+        }
+        .sq-last-move {
+            background-color: rgba(250, 204, 21, 0.45) !important;
+        }
+        .sq-highlight-move::after {
+            content: '';
+            width: 30%;
+            height: 30%;
+            background-color: rgba(34, 197, 94, 0.9);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.9);
+        }
+        .sq-highlight-capture {
+            box-shadow: inset 0 0 0 4px #ef4444;
+            background-color: rgba(239, 68, 68, 0.25) !important;
+        }
+
+        /* Chess Pieces Styling */
+        .piece {
+            font-size: clamp(2.3rem, 5.5vw, 3.4rem);
+            line-height: 1;
+            position: relative;
+            z-index: 10;
+            transition: transform 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .piece:hover {
+            transform: scale(1.15);
+        }
+        .piece-w {
+            color: #ffffff;
+            text-shadow: 
+                -1.5px -1.5px 0 #000,  
+                 1.5px -1.5px 0 #000,
+                -1.5px  1.5px 0 #000,
+                 1.5px  1.5px 0 #000,
+                 0 4px 10px rgba(0,0,0,0.7);
+        }
+        .piece-b {
+            color: #0f172a;
+            text-shadow: 
+                -1.5px -1.5px 0 #fff,  
+                 1.5px -1.5px 0 #fff,
+                -1.5px  1.5px 0 #fff,
+                 1.5px  1.5px 0 #fff,
+                 0 4px 10px rgba(255,255,255,0.7);
+        }
+
+        /* Colored Dot Badges on Pieces */
+        .uno-dot-badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            z-index: 20;
+        }
+        
+        .dot-red, .sq-dot-red { background-color: #ef4444; }
+        .dot-yellow, .sq-dot-yellow { background-color: #eab308; }
+        .dot-green, .sq-dot-green { background-color: #22c55e; }
+        .dot-blue, .sq-dot-blue { background-color: #3b82f6; }
+
+        /* Reverse Shield & Frozen Effects */
+        .shield-badge {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            color: #c084fc;
+            font-size: 15px;
+            filter: drop-shadow(0 0 6px #a855f7);
+            z-index: 22;
+            animation: pulseShield 1.5s infinite alternate;
+        }
+        @keyframes pulseShield {
+            from { transform: scale(1); filter: drop-shadow(0 0 4px #a855f7); }
+            to { transform: scale(1.25); filter: drop-shadow(0 0 10px #c084fc); }
+        }
+
+        .frozen-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(56, 189, 248, 0.45);
+            backdrop-filter: blur(1px);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e0f2fe;
+            font-size: 24px;
+            z-index: 25;
+            border: 2px solid #38bdf8;
+        }
+
+        /* UNO Deck Graphics */
+        .uno-card-3d {
+            width: 70px;
+            height: 105px;
+            border-radius: 10px;
+            background: #dc2626;
+            border: 3px solid #ffffff;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .uno-card-3d:hover {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 10px 20px rgba(239, 68, 68, 0.5);
+        }
+        .uno-oval {
+            width: 82%;
+            height: 52%;
+            background-color: #facc15;
+            border-radius: 50%;
+            transform: rotate(-25deg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+        }
+        .uno-text {
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 900;
+            font-style: italic;
+            font-size: 13px;
+            color: #ef4444;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        /* Modal Backdrop */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(5px);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-backdrop.active { display: flex; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center p-2 sm:p-4">
+
+    <!-- Header Navbar -->
+    <header class="w-full max-w-6xl flex justify-between items-center py-2.5 px-4 bg-slate-800/90 rounded-xl border border-slate-700/80 mb-3 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-red-600 via-yellow-500 to-blue-600 flex items-center justify-center font-black text-xl shadow-md">
+                ♟️
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide bg-gradient-to-r from-red-400 via-yellow-300 to-blue-400 bg-clip-text text-transparent">UNO CHESS</h1>
+                <p class="text-xs text-slate-400">Cờ Vua Chuẩn x Chiến Thuật Thẻ UNO</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="toggleAudio()" id="btn-audio" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-volume-high text-yellow-400"></i> Sound
+            </button>
+            <button onclick="showInstructions()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-circle-question"></i> Luật Chơi
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="w-full max-w-6xl flex-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6">
+
+        <!-- LEFT PANEL: Clocks & Card Deck -->
+        <div class="w-full lg:w-72 flex flex-col items-center gap-4 order-2 lg:order-1">
+            
+            <!-- Black Player Clock -->
+            <div id="clock-black" class="chess-clock w-full p-3.5 flex flex-col items-center">
+                <div class="w-full flex justify-between items-center mb-1 text-xs text-slate-300 font-semibold">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-circle text-slate-900 border border-slate-400 rounded-full"></i> ĐỘI ĐEN</span>
+                    <span id="player-label-b" class="text-slate-400">Bot AI</span>
+                </div>
+                <div class="lcd-display w-full py-1.5 text-center text-3xl font-digital tracking-widest" id="timer-b">
+                    10:00.0
+                </div>
+                <div id="status-b" class="mt-1.5 text-xs font-medium text-slate-400 h-4">
+                    Đang chờ...
+                </div>
+            </div>
+
+            <!-- UNO Deck & Card Hand Zone -->
+            <div class="w-full bg-slate-800/90 border border-slate-700 p-4 rounded-xl flex flex-col items-center shadow-xl">
+                <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-cards text-red-400"></i> Khu Vực Thẻ Bài UNO
+                </div>
+                
+                <div class="grid grid-cols-3 gap-2 w-full items-center text-center">
+                    <!-- DRAW DECK -->
+                    <div onclick="userDrawCard()" class="flex flex-col items-center cursor-pointer group">
+                        <div class="uno-card-3d">
+                            <div class="uno-oval">
+                                <span class="uno-text">UNO</span>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-slate-300 font-bold mt-1.5 group-hover:text-yellow-400 transition">RÚT THẺ</span>
+                        <span class="text-[9px] text-slate-400 font-medium">(Mất Lượt)</span>
+                    </div>
+
+                    <!-- DISCARD PILE -->
+                    <div class="flex flex-col items-center">
+                        <div id="active-card-container" class="w-[70px] h-[105px] rounded-xl border-2 border-slate-600 bg-slate-900 flex flex-col items-center justify-center shadow-md">
+                            <span class="text-slate-500 text-[10px] italic">Thẻ Vừa Dùng</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-semibold mt-1.5">Mới Đánh</span>
+                    </div>
+
+                    <!-- HELD CARD SLOT -->
+                    <div class="flex flex-col items-center">
+                        <div id="held-card-container" class="w-[70px] h-[105px] rounded-xl border-2 border-dashed border-slate-600 bg-slate-900/60 flex flex-col items-center justify-center shadow-md transition-all">
+                            <span class="text-slate-500 text-[10px] italic">Trống</span>
+                        </div>
+                        <button id="btn-play-card" onclick="playHeldCard()" disabled class="mt-1.5 px-2 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:opacity-40 text-white rounded text-[10px] font-extrabold transition">
+                            ĐÁNH THẺ
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Effect Banner -->
+                <div id="effect-banner" class="w-full mt-3 p-2 bg-slate-900/80 border border-slate-700 rounded-lg text-center text-xs font-medium text-yellow-300 min-h-[44px] flex items-center justify-center">
+                    Đến lượt bạn: Đi 1 nước Cờ Vua HOẶC Rút 1 Thẻ UNO!
+                </div>
+            </div>
+
+            <!-- White Player Clock -->
+            <div id="clock-white" class="chess-clock w-full p-3.5 flex flex-col items-center active-turn">
+                <div class="w-full flex justify-between items-center mb-1 text-xs text-slate-300 font-semibold">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-circle text-white border border-slate-700 rounded-full"></i> ĐỘI TRẮNG</span>
+                    <span id="player-label-w" class="text-emerald-400">BẠN (Người Chơi)</span>
+                </div>
+                <div class="lcd-display w-full py-1.5 text-center text-3xl font-digital tracking-widest" id="timer-w">
+                    10:00.0
+                </div>
+                <div id="status-w" class="mt-1.5 text-xs font-medium text-emerald-400 h-4">
+                    Lượt Của Bạn
+                </div>
+            </div>
+
+        </div>
+
+        <!-- CENTER PANEL: Chess Board -->
+        <div class="flex flex-col items-center order-1 lg:order-2 flex-1 w-full max-w-[540px]">
+            
+            <!-- Turn Status Banner -->
+            <div class="w-full mb-3 flex justify-between items-center px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl shadow-md">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-400">LƯỢT ĐI:</span>
+                    <span id="turn-indicator" class="text-sm font-extrabold text-emerald-400 tracking-wide uppercase">BÊN TRẮNG</span>
+                </div>
+                <div id="game-state-tag" class="text-xs px-2.5 py-1 bg-blue-900/60 text-blue-300 border border-blue-700/50 rounded-full font-bold">
+                    Đang Đấu
+                </div>
+            </div>
+
+            <!-- Chessboard -->
+            <div class="board-container">
+                <div id="chessboard" class="chess-grid"></div>
+            </div>
+
+            <!-- Captured Pieces Bar -->
+            <div class="w-full mt-3 p-3 bg-slate-800/80 border border-slate-700 rounded-xl flex flex-col gap-2 shadow-md">
+                <div class="flex justify-between items-center text-xs text-slate-400 font-bold border-b border-slate-700/60 pb-1">
+                    <span>Quân Cờ Đã Bị Ăn</span>
+                    <button onclick="resetGame()" class="text-xs text-red-400 hover:text-red-300 font-semibold transition">Chơi Lại</button>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div id="captured-w" class="flex gap-1 text-lg min-h-[28px] items-center text-white"></div>
+                    <div id="captured-b" class="flex gap-1 text-lg min-h-[28px] items-center text-slate-900"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT PANEL: Modes, Move Log, Online Room -->
+        <div class="w-full lg:w-64 flex flex-col gap-4 order-3">
+            
+            <!-- Mode Setup Card -->
+            <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex flex-col gap-3">
+                <h3 class="text-xs font-extrabold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                    <i class="fa-solid fa-gamepad text-emerald-400"></i> Chế Độ Chơi
+                </h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="selectMode('bot')" id="btn-mode-bot" class="py-2 px-3 bg-blue-600 text-white rounded-lg text-xs font-bold transition flex flex-col items-center justify-center">
+                        <i class="fa-solid fa-robot mb-1 text-sm"></i> Đấu Với Bot
+                    </button>
+                    <button onclick="selectMode('local')" id="btn-mode-local" class="py-2 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center">
+                        <i class="fa-solid fa-users mb-1 text-sm"></i> 2 Người (Local)
+                    </button>
+                </div>
+
+                <!-- Online Multiplayer Subpanel -->
+                <div class="pt-2 border-t border-slate-700/70 flex flex-col gap-2">
+                    <span class="text-xs font-bold text-slate-400">Đấu Online Trực Tuyến</span>
+                    <button onclick="createOnlineRoom()" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-xs font-bold rounded-lg transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Tạo Phòng Mới
+                    </button>
+                    <div class="flex gap-1.5">
+                        <input type="text" id="input-room-id" placeholder="Mã Phòng" class="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono uppercase focus:outline-none focus:border-purple-500">
+                        <button onclick="joinOnlineRoom()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-lg transition">
+                            Vào
+                        </button>
+                    </div>
+                    <div id="room-code-display" class="hidden p-2 bg-purple-950/60 border border-purple-800 rounded-lg text-center text-xs text-purple-200">
+                        Mã Phòng: <span id="display-rid" class="font-bold text-yellow-300 font-mono">------</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Move History Log -->
+            <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex-1 flex flex-col min-h-[220px]">
+                <h3 class="text-xs font-extrabold tracking-wider text-slate-400 uppercase mb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-list-ol text-blue-400"></i> Lịch Sử Nước Đi</span>
+                    <span id="move-count" class="text-[10px] bg-slate-700 px-2 py-0.5 rounded-full text-slate-300">0 Nước</span>
+                </h3>
+                <div id="move-log" class="flex-1 max-h-[220px] overflow-y-auto space-y-1.5 pr-1 text-xs font-mono">
+                    <div class="text-slate-500 italic text-center py-4">Trận đấu bắt đầu. Quân Trắng đi trước!</div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal Dialogs -->
+    <div id="modal-gameover" class="modal-backdrop">
+        <div class="bg-slate-800 border border-slate-600 p-6 rounded-2xl max-w-sm w-full mx-4 text-center shadow-2xl">
+            <div id="gameover-icon" class="text-5xl mb-3">🏆</div>
+            <h2 id="gameover-title" class="text-2xl font-black text-white mb-2">CHIẾN THẮNG!</h2>
+            <p id="gameover-msg" class="text-slate-300 text-sm mb-6">Đã bắt được Vua! Trận đấu kết thúc.</p>
+            <button onclick="closeModal('modal-gameover'); resetGame();" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-sm tracking-wide transition shadow-lg">
+                Ván Mới
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-rules" class="modal-backdrop">
+        <div class="bg-slate-800 border border-slate-600 p-6 rounded-2xl max-w-md w-full mx-4 shadow-2xl text-slate-200">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+                <h3 class="text-lg font-bold text-yellow-400 flex items-center gap-2">
+                    <i class="fa-solid fa-book-open"></i> Luật Chơi UNO Chess
+                </h3>
+                <button onclick="closeModal('modal-rules')" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3 text-xs leading-relaxed max-h-[350px] overflow-y-auto pr-2">
+                <p><strong>1. Luật Lượt Đi:</strong> Mỗi lượt chọn <i>ĐI CỜ VUA</i> chuẩn HOẶC <i>RÚT 1 THẺ UNO</i> (Mất lượt).</p>
+                <p><strong>2. Thẻ Bài UNO:</strong> Thẻ số (+1 đến +4) đi liên tiếp quân cùng màu. Thẻ Skip đóng băng quân địch 1 lượt. Thẻ Reverse phản công khi bị ăn.</p>
+            </div>
+            <button onclick="closeModal('modal-rules')" class="w-full mt-4 py-2 bg-slate-700 hover:bg-slate-600 font-bold text-xs rounded-lg transition">
+                Đã Hiểu!
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game Logic Script -->
+    <script>
+        // Sound FX Engine
+        let audioEnabled = true;
+        let audioCtx = null;
+
+        function playSound(type) {
+            if (!audioEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (type === 'move') {
+                    osc.frequency.setValueAtTime(350, now);
+                    osc.frequency.exponentialRampToValueAtTime(180, now + 0.08);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now); osc.stop(now + 0.08);
+                } else if (type === 'capture') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(550, now);
+                    osc.frequency.exponentialRampToValueAtTime(120, now + 0.14);
+                    gain.gain.setValueAtTime(0.35, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.14);
+                    osc.start(now); osc.stop(now + 0.14);
+                } else if (type === 'card') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(280, now);
+                    osc.frequency.linearRampToValueAtTime(650, now + 0.12);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now); osc.stop(now + 0.12);
+                } else if (type === 'win') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.12);
+                    osc.frequency.setValueAtTime(783.99, now + 0.24);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now); osc.stop(now + 0.4);
+                }
+            } catch(e) {}
+        }
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('btn-audio');
+            btn.innerHTML = audioEnabled ? 
+                '<i class="fa-solid fa-volume-high text-yellow-400"></i> Sound' : 
+                '<i class="fa-solid fa-volume-xmark text-slate-400"></i> Muted';
+        }
+
+        function showInstructions() {
+            document.getElementById('modal-rules').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        // Chess Piece Glyphs
+        const WHITE_PIECE_ICONS = { 'k': '♔', 'q': '♕', 'r': '♖', 'b': '♗', 'n': '♘', 'p': '♙' };
+        const BLACK_PIECE_ICONS = { 'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟' };
+        const COLUMN_COLORS = ['green', 'green', 'red', 'red', 'blue', 'blue', 'yellow', 'yellow'];
+
+        // Global State
+        let state = {
+            mode: 'bot',
+            roomId: null,
+            myTeam: 'w',
+            board: [],
+            turn: 'w',
+            status: 'playing',
+            selectedSq: null,
+            legalMoves: [],
+            lastMove: null,
+            activeEffect: null,
+            handW: null,
+            handB: null,
+            activeCard: null,
+            capturedW: [],
+            capturedB: [],
+            moveHistory: [],
+            wTime: 600,
+            bTime: 600,
+            timerInterval: null
+        };
+
+        function createInitialBoard() {
+            const initialRanks = [
+                ['r','n','b','q','k','b','n','r'],
+                ['p','p','p','p','p','p','p','p'],
+                ['p','p','p','p','p','p','p','p'],
+                ['r','n','b','q','k','b','n','r']
+            ];
+
+            const newBoard = Array(8).fill(null).map(() => Array(8).fill(null));
+
+            for (let r = 0; r < 8; r++) {
+                let rankData = null;
+                if (r === 0) rankData = initialRanks[0];
+                else if (r === 1) rankData = initialRanks[1];
+                else if (r === 6) rankData = initialRanks[2];
+                else if (r === 7) rankData = initialRanks[3];
+
+                if (rankData) {
+                    for (let c = 0; c < 8; c++) {
+                        const team = r < 2 ? 'b' : 'w';
+                        newBoard[r][c] = {
+                            type: rankData[c],
+                            team: team,
+                            color: COLUMN_COLORS[c],
+                            shield: false,
+                            frozen: 0
+                        };
+                    }
+                }
+            }
+            return newBoard;
+        }
+
+        function generateRandomCard() {
+            const rand = Math.random();
+            if (rand < 0.70) {
+                const colors = ['red', 'yellow', 'green', 'blue'];
+                const c = colors[Math.floor(Math.random() * colors.length)];
+                const val = Math.floor(Math.random() * 4) + 1;
+                const bgMap = { red: 'bg-red-600', yellow: 'bg-yellow-600', green: 'bg-green-600', blue: 'bg-blue-600' };
+                return {
+                    type: 'number',
+                    color: c,
+                    value: val,
+                    name: `${c.toUpperCase()} +${val}`,
+                    icon: 'fa-bolt',
+                    bgClass: bgMap[c]
+                };
+            } else if (rand < 0.85) {
+                return {
+                    type: 'reverse',
+                    color: 'purple',
+                    name: 'KHIÊN REVERSE',
+                    icon: 'fa-shield-halved',
+                    bgClass: 'bg-purple-600'
+                };
+            } else {
+                return {
+                    type: 'skip',
+                    color: 'sky',
+                    name: 'CẤM / SKIP',
+                    icon: 'fa-ban',
+                    bgClass: 'bg-sky-600'
+                };
+            }
+        }
+
+        function userDrawCard(isBot = false) {
+            if (state.status !== 'playing') return;
+            if (!isBot && state.mode === 'bot' && state.turn === 'b') return;
+            if (state.mode === 'online' && state.myTeam !== state.turn) return;
+
+            if (state.activeEffect && state.activeEffect.type === 'multi') {
+                setEffectBanner("⚠️ Hãy hoàn thành chuỗi nước đi màu hiện tại!");
+                return;
+            }
+
+            playSound('card');
+            const newCard = generateRandomCard();
+
+            if (state.turn === 'w') state.handW = newCard;
+            else state.handB = newCard;
+
+            logMove(`${state.turn === 'w' ? 'TRẮNG' : 'ĐEN'} vừa rút thẻ [${newCard.name}].`);
+            setEffectBanner(`🃏 ${state.turn === 'w' ? 'TRẮNG' : 'ĐEN'} vừa rút thẻ ${newCard.name}! Chuyển lượt.`);
+
+            state.selectedSq = null;
+            state.legalMoves = [];
+            finishTurn();
+        }
+
+        function playHeldCard(isBot = false) {
+            if (state.status !== 'playing') return;
+            if (!isBot && state.mode === 'bot' && state.turn === 'b') return;
+            if (state.mode === 'online' && state.myTeam !== state.turn) return;
+
+            const card = state.turn === 'w' ? state.handW : state.handB;
+            if (!card) return;
+
+            playSound('card');
+            state.activeCard = card;
+
+            if (state.turn === 'w') state.handW = null;
+            else state.handB = null;
+
+            if (card.type === 'number') {
+                state.activeEffect = { type: 'multi', color: card.color, remaining: card.value };
+                logMove(`${state.turn === 'w' ? 'TRẮNG' : 'ĐEN'} dùng [${card.name}]!`);
+                setEffectBanner(`⚡ Kích hoạt ${card.name}! Bạn có ${card.value} nước đi liên tiếp với quân màu ${card.color.toUpperCase()}.`);
+            } else if (card.type === 'reverse') {
+                state.activeEffect = { type: 'reverse_target' };
+                setEffectBanner(`🔄 KHIÊN REVERSE! Bấm vào 1 quân của bạn (trừ Vua) để trang bị Khiên.`);
+            } else if (card.type === 'skip') {
+                state.activeEffect = { type: 'skip_target' };
+                setEffectBanner(`🚫 SKIP CẤM ĐI! Bấm vào 1 quân địch (trừ Vua) để Đóng Băng nó.`);
+            }
+
+            renderCardDisplay();
+            renderBoard();
+        }
+
+        function getStrictLegalMoves(r, c, board) {
+            const piece = board[r][c];
+            if (!piece) return [];
+
+            if (state.activeEffect && state.activeEffect.type === 'multi') {
+                if (piece.color !== state.activeEffect.color) return [];
+            }
+
+            const moves = [];
+            const dir = piece.team === 'w' ? -1 : 1;
+
+            // Pawns
+            if (piece.type === 'p') {
+                const fr = r + dir;
+                if (fr >= 0 && fr < 8 && !board[fr][c]) {
+                    moves.push({ r: fr, c });
+                    const startRank = piece.team === 'w' ? 6 : 1;
+                    const fr2 = r + (dir * 2);
+                    if (r === startRank && !board[fr2][c]) {
+                        moves.push({ r: fr2, c });
+                    }
+                }
+                [-1, 1].forEach(dc => {
+                    const fc = c + dc;
+                    if (fr >= 0 && fr < 8 && fc >= 0 && fc < 8) {
+                        const target = board[fr][fc];
+                        if (target && target.team !== piece.team) {
+                            moves.push({ r: fr, c: fc });
+                        }
+                    }
+                });
+            }
+
+            // Knights
+            if (piece.type === 'n') {
+                const kDeltas = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+                kDeltas.forEach(([dr, dc]) => {
+                    const tr = r + dr, tc = c + dc;
+                    if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8) {
+                        if (!board[tr][tc] || board[tr][tc].team !== piece.team) {
+                            moves.push({ r: tr, c: tc });
+                        }
+                    }
+                });
+            }
+
+            // Rays (Bishop, Rook, Queen)
+            const addRays = (directions) => {
+                directions.forEach(([dr, dc]) => {
+                    let tr = r + dr, tc = c + dc;
+                    while (tr >= 0 && tr < 8 && tc >= 0 && tc < 8) {
+                        if (!board[tr][tc]) {
+                            moves.push({ r: tr, c: tc });
+                        } else {
+                            if (board[tr][tc].team !== piece.team) moves.push({ r: tr, c: tc });
+                            break;
+                        }
+                        tr += dr; tc += dc;
+                    }
+                });
+            };
+
+            if (piece.type === 'b') addRays([[-1,-1],[-1,1],[1,-1],[1,1]]);
+            if (piece.type === 'r') addRays([[-1,0],[1,0],[0,-1],[0,1]]);
+            if (piece.type === 'q') addRays([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
+
+            // King
+            if (piece.type === 'k') {
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const tr = r + dr, tc = c + dc;
+                        if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8) {
+                            if (!board[tr][tc] || board[tr][tc].team !== piece.team) {
+                                moves.push({ r: tr, c: tc });
+                            }
+                        }
+                    }
+                }
+            }
+
+            return moves;
+        }
+
+        function handleSquareClick(r, c) {
+            if (state.status !== 'playing') return;
+            if (state.mode === 'bot' && state.turn === 'b') return;
+            if (state.mode === 'online' && state.myTeam !== state.turn) return;
+
+            const clickedPiece = state.board[r][c];
+
+            if (state.activeEffect && state.activeEffect.type === 'reverse_target') {
+                if (!clickedPiece || clickedPiece.team !== state.turn) {
+                    setEffectBanner("🔄 Hãy chọn 1 QUÂN BÊN BẠN!");
+                    return;
+                }
+                if (clickedPiece.type === 'k') {
+                    setEffectBanner("⚠️ Không thể gắn Khiên Reverse cho Vua!");
+                    return;
+                }
+                clickedPiece.shield = true;
+                logMove(`${state.turn === 'w' ? 'TRẮNG' : 'ĐEN'} gắn Khiên REVERSE cho quân ${clickedPiece.type.toUpperCase()}`);
+                playSound('card');
+                state.activeEffect = null;
+                finishTurn();
+                return;
+            }
+
+            if (state.activeEffect && state.activeEffect.type === 'skip_target') {
+                if (!clickedPiece || clickedPiece.team === state.turn) {
+                    setEffectBanner("🚫 Hãy chọn 1 QUÂN ĐỊCH!");
+                    return;
+                }
+                if (clickedPiece.type === 'k') {
+                    setEffectBanner("⚠️ Không thể Đóng Băng Vua của đối phương!");
+                    return;
+                }
+                clickedPiece.frozen = 1;
+                logMove(`${state.turn === 'w' ? 'TRẮNG' : 'ĐEN'} ĐÓNG BĂNG quân ${clickedPiece.type.toUpperCase()} của đối thủ`);
+                playSound('card');
+                state.activeEffect = null;
+                finishTurn();
+                return;
+            }
+
+            if (state.selectedSq) {
+                const isTarget = state.legalMoves.some(m => m.r === r && m.c === c);
+                if (isTarget) {
+                    executeMove(state.selectedSq.r, state.selectedSq.c, r, c);
+                    return;
+                }
+            }
+
+            if (clickedPiece && clickedPiece.team === state.turn) {
+                if (clickedPiece.frozen > 0) {
+                    setEffectBanner("❄️ Quân này đang bị ĐÓNG BĂNG bởi thẻ SKIP!");
+                    return;
+                }
+                state.selectedSq = { r, c };
+                state.legalMoves = getStrictLegalMoves(r, c, state.board);
+                renderBoard();
+            } else {
+                state.selectedSq = null;
+                state.legalMoves = [];
+                renderBoard();
+            }
+        }
+
+        function executeMove(fr, fc, tr, tc) {
+            const attacker = state.board[fr][fc];
+            const defender = state.board[tr][tc];
+
+            if (defender && defender.shield) {
+                playSound('capture');
+                state.board[fr][fc] = null;
+                defender.shield = false;
+                
+                const pieceIcon = attacker.team === 'w' ? WHITE_PIECE_ICONS[attacker.type] : BLACK_PIECE_ICONS[attacker.type];
+                if (attacker.team === 'w') state.capturedB.push(pieceIcon);
+                else state.capturedW.push(pieceIcon);
+
+                logMove(`💥 REVERSE KÍCH HOẠT! Quân ${attacker.type.toUpperCase()} của ${attacker.team === 'w' ? 'TRẮNG' : 'ĐEN'} bị tiêu diệt do Khiên!`);
+            } else {
+                if (defender) {
+                    playSound('capture');
+                    const pieceIcon = defender.team === 'w' ? WHITE_PIECE_ICONS[defender.type] : BLACK_PIECE_ICONS[defender.type];
+                    if (defender.team === 'w') state.capturedB.push(pieceIcon);
+                    else state.capturedW.push(pieceIcon);
+
+                    if (defender.type === 'k') {
+                        state.board[tr][tc] = attacker;
+                        state.board[fr][fc] = null;
+                        winGame(state.turn);
+                        return;
+                    }
+                } else {
+                    playSound('move');
+                }
+
+                if (attacker.type === 'p' && (tr === 0 || tr === 7)) {
+                    attacker.type = 'q';
+                }
+
+                state.board[tr][tc] = attacker;
+                state.board[fr][fc] = null;
+                logMove(`${state.turn === 'w' ? 'TRẮNG' : 'ĐEN'}: ${attacker.type.toUpperCase()} sang ${String.fromCharCode(97+tc)}${8-tr}`);
+            }
+
+            state.lastMove = { from: { r: fr, c: fc }, to: { r: tr, c: tc } };
+            state.selectedSq = null;
+            state.legalMoves = [];
+
+            if (state.activeEffect && state.activeEffect.type === 'multi') {
+                state.activeEffect.remaining--;
+                if (state.activeEffect.remaining > 0) {
+                    setEffectBanner(`⚡ Lượt phụ! Còn ${state.activeEffect.remaining} nước đi cho quân màu ${state.activeEffect.color.toUpperCase()}.`);
+                    renderBoard();
+                    if (state.mode === 'bot' && state.turn === 'b') {
+                        setTimeout(runBotTurn, 700);
+                    }
+                    return;
+                } else {
+                    state.activeEffect = null;
+                }
+            }
+
+            finishTurn();
+        }
+
+        function finishTurn() {
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = state.board[r][c];
+                    if (p && p.team === state.turn && p.frozen > 0) {
+                        p.frozen--;
+                    }
+                }
+            }
+
+            state.turn = state.turn === 'w' ? 'b' : 'w';
+            state.selectedSq = null;
+            state.legalMoves = [];
+
+            renderBoard();
+            renderCardDisplay();
+            updateUIState();
+
+            if (state.mode === 'bot' && state.turn === 'b' && state.status === 'playing') {
+                setTimeout(runBotTurn, 800);
+            }
+        }
+
+        function runBotTurn() {
+            if (state.status !== 'playing' || state.turn !== 'b') return;
+
+            if (state.activeEffect && state.activeEffect.type === 'reverse_target') {
+                let valid = [];
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (state.board[r][c]?.team === 'b' && state.board[r][c].type !== 'k') valid.push({r,c});
+                    }
+                }
+                if (valid.length > 0) {
+                    const chosen = valid[Math.floor(Math.random() * valid.length)];
+                    state.board[chosen.r][chosen.c].shield = true;
+                    logMove(`ĐEN gắn Khiên REVERSE cho quân ${state.board[chosen.r][chosen.c].type.toUpperCase()}`);
+                }
+                state.activeEffect = null;
+                finishTurn();
+                return;
+            }
+
+            if (state.activeEffect && state.activeEffect.type === 'skip_target') {
+                let valid = [];
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (state.board[r][c]?.team === 'w' && state.board[r][c].type !== 'k') valid.push({r,c});
+                    }
+                }
+                if (valid.length > 0) {
+                    const chosen = valid[Math.floor(Math.random() * valid.length)];
+                    state.board[chosen.r][chosen.c].frozen = 1;
+                    logMove(`ĐEN ĐÓNG BĂNG quân ${state.board[chosen.r][chosen.c].type.toUpperCase()} của đối thủ`);
+                }
+                state.activeEffect = null;
+                finishTurn();
+                return;
+            }
+
+            if (state.handB && Math.random() < 0.40) {
+                playHeldCard(true);
+                if (state.activeEffect && state.activeEffect.type === 'multi') {
+                    setTimeout(runBotTurn, 700);
+                }
+                return;
+            }
+
+            if (!state.handB && !state.activeEffect && Math.random() < 0.25) {
+                userDrawCard(true);
+                return;
+            }
+
+            let allMoves = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = state.board[r][c];
+                    if (p && p.team === 'b' && p.frozen === 0) {
+                        const moves = getStrictLegalMoves(r, c, state.board);
+                        moves.forEach(m => {
+                            allMoves.push({ fr: r, fc: c, tr: m.r, tc: m.c, target: state.board[m.r][m.c] });
+                        });
+                    }
+                }
+            }
+
+            if (allMoves.length > 0) {
+                allMoves.sort((a,b) => {
+                    const valA = a.target ? (a.target.type === 'k' ? 100 : 10) : 0;
+                    const valB = b.target ? (b.target.type === 'k' ? 100 : 10) : 0;
+                    return valB - valA;
+                });
+                const chosen = allMoves[0];
+                executeMove(chosen.fr, chosen.fc, chosen.tr, chosen.tc);
+            } else {
+                if (!state.handB) userDrawCard(true);
+                else finishTurn();
+            }
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('chessboard');
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    const isLight = (r + c) % 2 === 0;
+                    square.className = `square ${isLight ? 'sq-light' : 'sq-dark'}`;
+
+                    // Thêm ô tròn nhỏ biểu thị màu UNO của ô cờ tại góc trên bên trái
+                    const sqColor = COLUMN_COLORS[c];
+                    const sqDot = document.createElement('div');
+                    sqDot.className = `sq-color-dot sq-dot-${sqColor}`;
+                    square.appendChild(sqDot);
+
+                    if (state.selectedSq && state.selectedSq.r === r && state.selectedSq.c === c) {
+                        square.classList.add('sq-selected');
+                    }
+                    if (state.lastMove && ((state.lastMove.from.r === r && state.lastMove.from.c === c) || (state.lastMove.to.r === r && state.lastMove.to.c === c))) {
+                        square.classList.add('sq-last-move');
+                    }
+
+                    const isLegal = state.legalMoves.some(m => m.r === r && m.c === c);
+                    if (isLegal) {
+                        if (state.board[r][c]) square.classList.add('sq-highlight-capture');
+                        else square.classList.add('sq-highlight-move');
+                    }
+
+                    const piece = state.board[r][c];
+                    if (piece) {
+                        const pieceEl = document.createElement('div');
+                        pieceEl.className = `piece piece-${piece.team}`;
+                        pieceEl.innerText = piece.team === 'w' ? WHITE_PIECE_ICONS[piece.type] : BLACK_PIECE_ICONS[piece.type];
+
+                        const dotEl = document.createElement('div');
+                        dotEl.className = `uno-dot-badge dot-${piece.color}`;
+                        pieceEl.appendChild(dotEl);
+
+                        if (piece.shield) {
+                            const shieldEl = document.createElement('i');
+                            shieldEl.className = 'fa-solid fa-shield-halved shield-badge';
+                            pieceEl.appendChild(shieldEl);
+                        }
+
+                        if (piece.frozen > 0) {
+                            const frozenEl = document.createElement('div');
+                            frozenEl.className = 'frozen-overlay';
+                            frozenEl.innerHTML = '<i class="fa-solid fa-snowflake"></i>';
+                            square.appendChild(frozenEl);
+                        }
+
+                        square.appendChild(pieceEl);
+                    }
+
+                    square.onclick = () => handleSquareClick(r, c);
+                    boardEl.appendChild(square);
+                }
+            }
+
+            document.getElementById('captured-w').innerHTML = state.capturedW.map(p => `<span>${p}</span>`).join('');
+            document.getElementById('captured-b').innerHTML = state.capturedB.map(p => `<span>${p}</span>`).join('');
+        }
+
+        function renderCardDisplay() {
+            const discardContainer = document.getElementById('active-card-container');
+            const heldContainer = document.getElementById('held-card-container');
+            const playBtn = document.getElementById('btn-play-card');
+
+            if (state.activeCard) {
+                const c = state.activeCard;
+                discardContainer.className = `w-[70px] h-[105px] rounded-xl border-2 border-white ${c.bgClass} flex flex-col items-center justify-center shadow-md text-white p-1 text-center`;
+                discardContainer.innerHTML = `<i class="fa-solid ${c.icon} text-base mb-1"></i><span class="text-[9px] font-bold leading-tight uppercase">${c.name}</span>`;
+            } else {
+                discardContainer.className = `w-[70px] h-[105px] rounded-xl border-2 border-slate-600 bg-slate-900 flex flex-col items-center justify-center shadow-md`;
+                discardContainer.innerHTML = `<span class="text-slate-500 text-[10px] italic">Thẻ Vừa Dùng</span>`;
+            }
+
+            const activeHand = state.turn === 'w' ? state.handW : state.handB;
+            if (activeHand) {
+                const h = activeHand;
+                heldContainer.className = `w-[70px] h-[105px] rounded-xl border-2 border-yellow-400 ${h.bgClass} flex flex-col items-center justify-center shadow-lg text-white p-1 text-center animate-pulse`;
+                heldContainer.innerHTML = `<i class="fa-solid ${h.icon} text-base mb-1"></i><span class="text-[9px] font-black leading-tight uppercase">${h.name}</span>`;
+                playBtn.disabled = (state.mode === 'bot' && state.turn === 'b');
+            } else {
+                heldContainer.className = `w-[70px] h-[105px] rounded-xl border-2 border-dashed border-slate-600 bg-slate-900/60 flex flex-col items-center justify-center shadow-md`;
+                heldContainer.innerHTML = `<span class="text-slate-500 text-[10px] italic">Trống</span>`;
+                playBtn.disabled = true;
+            }
+        }
+
+        function updateUIState() {
+            const turnInd = document.getElementById('turn-indicator');
+            turnInd.innerText = state.turn === 'w' ? 'BÊN TRẮNG' : 'BÊN ĐEN';
+
+            const clockW = document.getElementById('clock-white');
+            const clockB = document.getElementById('clock-black');
+            if (state.turn === 'w') {
+                clockW.classList.add('active-turn');
+                clockB.classList.remove('active-turn');
+            } else {
+                clockB.classList.add('active-turn');
+                clockW.classList.remove('active-turn');
+            }
+
+            const statusW = document.getElementById('status-w');
+            const statusB = document.getElementById('status-b');
+
+            if (statusW && statusB) {
+                if (state.turn === 'w') {
+                    statusW.innerText = 'Lượt Của Bạn';
+                    statusB.innerText = 'Đang chờ...';
+                } else {
+                    statusW.innerText = 'Đang chờ...';
+                    statusB.innerText = 'Lượt Của Bạn';
+                }
+            }
+        }
+
+        function setEffectBanner(msg) {
+            document.getElementById('effect-banner').innerText = msg;
+        }
+
+        function logMove(msg) {
+            state.moveHistory.push(msg);
+            const logEl = document.getElementById('move-log');
+            if (state.moveHistory.length === 1) logEl.innerHTML = '';
+            const entry = document.createElement('div');
+            entry.className = 'py-0.5 border-b border-slate-700/50 text-slate-300';
+            entry.innerText = `${state.moveHistory.length}. ${msg}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            document.getElementById('move-count').innerText = `${state.moveHistory.length} Nước`;
+        }
+
+        function winGame(winner) {
+            state.status = `${winner}_win`;
+            playSound('win');
+            document.getElementById('gameover-title').innerText = `${winner === 'w' ? 'BÊN TRẮNG' : 'BÊN ĐEN'} THẮNG!`;
+            document.getElementById('gameover-msg').innerText = `Đã bắt được Vua! ${winner === 'w' ? 'Trắng' : 'Đen'} làm chủ bàn cờ.`;
+            document.getElementById('modal-gameover').classList.add('active');
+        }
+
+        function startTimer() {
+            if (state.timerInterval) clearInterval(state.timerInterval);
+            state.timerInterval = setInterval(() => {
+                if (state.status !== 'playing') return;
+                if (state.turn === 'w') {
+                    state.wTime = Math.max(0, state.wTime - 0.1);
+                    if (state.wTime === 0) winGame('b');
+                } else {
+                    state.bTime = Math.max(0, state.bTime - 0.1);
+                    if (state.bTime === 0) winGame('w');
+                }
+                formatTimers();
+            }, 100);
+        }
+
+        function formatTimers() {
+            const format = (t) => {
+                const m = Math.floor(t / 60);
+                const s = Math.floor(t % 60);
+                const ms = Math.floor((t % 1) * 10);
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
+            };
+            document.getElementById('timer-w').innerText = format(state.wTime);
+            document.getElementById('timer-b').innerText = format(state.bTime);
+        }
+
+        function selectMode(m) {
+            state.mode = m;
+            document.getElementById('btn-mode-bot').className = m === 'bot' ? 'py-2 px-3 bg-blue-600 text-white rounded-lg text-xs font-bold transition flex flex-col items-center justify-center' : 'py-2 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center';
+            document.getElementById('btn-mode-local').className = m === 'local' ? 'py-2 px-3 bg-blue-600 text-white rounded-lg text-xs font-bold transition flex flex-col items-center justify-center' : 'py-2 px-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center';
+            
+            document.getElementById('player-label-b').innerText = m === 'bot' ? 'Bot AI' : 'Người Chơi 2';
+            resetGame();
+        }
+
+        function resetGame() {
+            state.board = createInitialBoard();
+            state.turn = 'w';
+            state.status = 'playing';
+            state.selectedSq = null;
+            state.legalMoves = [];
+            state.lastMove = null;
+            state.activeEffect = null;
+            state.handW = null;
+            state.handB = null;
+            state.activeCard = null;
+            state.capturedW = [];
+            state.capturedB = [];
+            state.moveHistory = [];
+            state.wTime = 600;
+            state.bTime = 600;
+
+            document.getElementById('move-log').innerHTML = '<div class="text-slate-500 italic text-center py-4">Trận đấu bắt đầu. Quân Trắng đi trước!</div>';
+            setEffectBanner("Đến lượt bạn: Đi 1 nước Cờ Vua HOẶC Rút 1 Thẻ UNO!");
+
+            renderBoard();
+            renderCardDisplay();
+            updateUIState();
+        }
+
+        window.onload = () => {
+            state.board = createInitialBoard();
+            renderBoard();
+            renderCardDisplay();
+            updateUIState();
+            startTimer();
+        };
+    </script>
+</body>
+</html>
